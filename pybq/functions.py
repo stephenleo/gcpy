@@ -6,7 +6,7 @@ import logging
 import os
 import pandas as pd
 import time
-import tqdm
+from tqdm import tqdm
 
 CLIENT = bigquery.Client()
 
