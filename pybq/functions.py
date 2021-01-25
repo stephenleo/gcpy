@@ -16,27 +16,31 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S')
 
 ####### GCS related #######
-def query_to_gcs(sql_file: str,
-                 data_path: str,
-                 project: str,
+def query_to_gcs(sql_query_file: str,
+                 target_gcs_path: str,
+                 query_params: dict = {},
+                 project: str = CLIENT.project,
                  dataset: str = 'pybq',
                  del_temp_bq_table: bool = True,
-                 query_params: dict = {},
                  location: str = 'US',
                  client=CLIENT) -> str:
     """Query all the necessary data and save as sharded csvs in GCS
 
     Arguments:
-    - sql_file: Full path to the .sql file that contains the query. 
-                Any query parameters should be within {}. eg: WHERE col_name<{some_key}
-    - data_path: GCS bucket path to store the sharded csvs
-    - project: GCP Project name
-    - dataset: Big Query Dataset to temporarily store the results before moving to GCS. 
-               It is the string that appears inbetween the project name and table name in Big Query
+    - sql_query_file: Full path to the .sql file that contains the query. 
+        Any query parameters should be within {}. eg: WHERE col_name<{some_key}. See query_params argument.
+    - target_gcs_path: GCS bucket path to store the output of the query in sharded csvs
     - query_params: Query Parameters dictionary. 
-                    The sql query in .sql is treated as a string with parameters inside {key} replaced their corresponding values.
-                    eg: {'some_key':10} will change the sql: WHERE col_name<{some_key} --> WHERE col_name<10
-    - location: location of the GCS bucket. Default: "US"
+        The sql query in .sql is treated as a string with parameters inside {key} replaced their corresponding values.
+        eg: {'some_key':10} will change the sql: WHERE col_name<{some_key} --> WHERE col_name<10
+        Default: {}
+    - project: GCP Project name. Default: CLIENT.project
+    - dataset: Big Query Dataset to temporarily store the results before moving to GCS. 
+        It is the string that appears inbetween the project name and table name in Big Query.
+        Default: 'pybq'
+    - del_temp_bq_table: Switch to delete the temporary BQ table. Default: True.
+        If set to False, the query results are saved in BQ table f'{project}.{dataset}.{sql_query_file.split("/")[-1].split(".")[0]}_{current_date_time}'
+    - location: location of the GCS bucket. Default: 'US'
     - client: The BigQuery Client. Default: CLIENT
 
     Returns:
@@ -53,42 +57,41 @@ def query_to_gcs(sql_file: str,
 
     # Query from BQ and store in temporary BQ table.
     logging.info('Executing query')
-    query_data = sql_file.split("/")[-1].split(".")[0]
-    output_table = f'{project}.{dataset}.{query_data}_{current_date_time}'
-    helpers.execute_query(sql_file, query_params, output_table, client)
+    query_data = sql_query_file.split("/")[-1].split(".")[0]
+    target_table = f'{project}.{dataset}.{query_data}_{current_date_time}'
+    helpers.execute_query(sql_query_file, query_params, target_table, client)
 
     # Export from temporary BQ table to sharded csvs in GCS
     logging.info('Write to Sharded CSVs in GCS')
-    gcs_path = f'{data_path}/{current_date_time}/{query_data}_*.csv'
-    tablename = output_table.split('.')[-1]
+    gcs_path = f'{target_gcs_path}/{current_date_time}/{query_data}_*.csv'
+    tablename = target_table.split('.')[-1]
     helpers.bq_to_gcs(project, dataset, tablename, gcs_path, location=location, client=client)
 
     if del_temp_bq_table:
-        client.delete_table(output_table, not_found_ok=True)
-        logging.info(f'Deleted {output_table} temporary BQ Table')
+        client.delete_table(target_table, not_found_ok=True)
+        logging.info(f'Deleted {target_table} temporary BQ Table')
 
     return gcs_path
 
-
-def gcs_to_bq(project: str, dataset: str, tablename: str, gcs_path: str, client=CLIENT):
+def gcs_to_bq(source_gcs_path: str, target_bq_dataset: str, target_bq_tablename: str, project: str = CLIENT.project, client=CLIENT):
     """Import GCS Table into BQ
 
     Arguments:
-    - project: GCP Project name
-    - dataset: BQ dataset containing the "tablename" table to import into
-    - tablename: BQ table to import into
-    - gcs_path: GCS path to store the sharded csvs
+    - source_gcs_path: source GCS path containing the files to load to BQ
+    - target_bq_dataset: BQ dataset containing the "target_bq_tablename" table to import into
+    - target_bq_tablename: BQ table to import into
+    - project: GCP Project name. Default: CLIENT.project
     - client: The BigQuery Client. Default: CLIENT
     """
-    dataset_ref = client.dataset(dataset, project=project)
+    dataset = client.dataset(target_bq_dataset, project=project)
 
     job_config = bigquery.LoadJobConfig(
         autodetect=True,
         write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE)
 
     s = time.time()
-    load_job = client.load_table_from_uri(gcs_path,
-                                          dataset_ref.table(tablename),
+    load_job = client.load_table_from_uri(source_gcs_path,
+                                          dataset.table(target_bq_tablename),
                                           job_config=job_config)  # API request
     logging.info(f'Starting job {load_job.job_id}')
 
@@ -97,36 +100,42 @@ def gcs_to_bq(project: str, dataset: str, tablename: str, gcs_path: str, client=
 
     logging.info(f'Job finished. Time elapsed: {e - s} seconds')
 
-    destination_table = client.get_table(dataset_ref.table(tablename))
-    logging.info(f'Loaded {destination_table.num_rows} rows')
+    target_table = client.get_table(dataset.table(target_bq_tablename))
+    logging.info(f'Loaded {target_table.num_rows} rows')
 
 
 ####### Pandas related #######
-def pd_to_bq(df, project: str, dataset: str, tablename: str, client=CLIENT):
+def pd_to_bq(source_df, target_dataset: str, target_tablename: str, project: str = CLIENT.project, client=CLIENT) -> str:
     """Pandas Dataframe to BigQuery
     
     Arguments:
-    - df: The DataFrame to load into BQ
-    - project: GCP Project name
-    - dataset: BQ dataset containing the "tablename" table to import into
-    - tablename: BQ table to import into
+    - source_df: The DataFrame to load into BQ
+    - target_dataset: BQ dataset containing the "target_tablename" table to import into
+    - target_tablename: BQ table to import into
+    - project: GCP Project name. Default: CLIENT.project
     - client: The BigQuery Client. Default: CLIENT
 
     Returns:
-    The string BQ table name where df has been uploaded to
+    The string BQ table name where source_df has been uploaded to
     """
-    bq_table = project + '.' + dataset + '.' + tablename
+    bq_table = project + '.' + target_dataset + '.' + target_tablename
 
-    job = client.load_table_from_dataframe(df, bq_table)
+    job = client.load_table_from_dataframe(source_df, bq_table)
 
     # Wait for the load job to complete.
     logging.info(job.result())
     return bq_table
 
-def sharded_gcs_csv_to_pd(gcs_path, file_prefix):
-    """GCS to Pandas Dataframe"""
-    bucketName = gcs_path.split('/')[2]
-    prefix = os.path.join(*gcs_path.split('/')[3:-1], file_prefix)
+def sharded_gcs_csv_to_pd(source_gcs_path: str, file_prefix: str):
+    """GCS to Pandas Dataframe
+    
+    Arguments:
+    - source_gcs_path: source GCS path containing the sharded csv files to load to BQ
+    - file_prefix: A file name prefix to select only the files of interest
+    """
+    
+    bucketName = source_gcs_path.split('/')[2]
+    prefix = os.path.join(*source_gcs_path.split('/')[3:-1], file_prefix)
 
     storage_client = storage.Client()
     bucket = storage_client.get_bucket(bucketName)
