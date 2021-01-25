@@ -19,10 +19,10 @@ logging.basicConfig(
 def query_to_gcs(sql_file: str,
                  data_path: str,
                  project: str,
-                 dataset: str,
+                 dataset: str = 'pybq',
                  del_temp_bq_table: bool = True,
                  query_params: dict = {},
-                 location: str = "US",
+                 location: str = 'US',
                  client=CLIENT) -> str:
     """Query all the necessary data and save as sharded csvs in GCS
 
@@ -46,6 +46,11 @@ def query_to_gcs(sql_file: str,
     # Current datetime
     current_date_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
+    # Create BQ dataset for temporary data storage
+    bq_dataset = bigquery.Dataset(f'{project}.{dataset}')
+    bq_dataset.location = location
+    bq_dataset = client.create_dataset(bq_dataset, timeout=30, exists_ok=True)  # Make an API request.
+
     # Query from BQ and store in temporary BQ table.
     logging.info('Executing query')
     query_data = sql_file.split("/")[-1].split(".")[0]
@@ -56,7 +61,7 @@ def query_to_gcs(sql_file: str,
     logging.info('Write to Sharded CSVs in GCS')
     gcs_path = f'{data_path}/{current_date_time}/{query_data}_*.csv'
     tablename = output_table.split('.')[-1]
-    helpers.bq_to_gcs(project, dataset, tablename, gcs_path, location="US", client=client)
+    helpers.bq_to_gcs(project, dataset, tablename, gcs_path, location=location, client=client)
 
     if del_temp_bq_table:
         client.delete_table(output_table, not_found_ok=True)
@@ -142,4 +147,3 @@ def sharded_gcs_csv_to_pd(gcs_path, file_prefix):
     unsharded_df = pd.concat(df_list, ignore_index=True)
 
     return unsharded_df
-    
