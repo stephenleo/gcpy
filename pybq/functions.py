@@ -6,6 +6,7 @@ import logging
 import os
 import pandas as pd
 import time
+import tqdm
 
 CLIENT = bigquery.Client()
 
@@ -149,7 +150,7 @@ def sharded_gcs_csv_to_pd(source_gcs_path: str, file_prefix: str):
 
     # Load all the csv files into a single dataframe if you want to (limited by RAM size). usecols is used to only read the columns of interest.
     df_list = []
-    for file in file_list:
+    for file in tqdm(file_list):
         df = pd.read_csv(file)
         df_list.append(df)
 
