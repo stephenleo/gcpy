@@ -36,7 +36,7 @@ def execute_query(sql_file: str,
     query_job = client.query(sql, job_config=job_config)  # Make an API request.
     query_job.result()  # Wait for the job to complete.
     e = time.time()
-    logger.info("Query Execution time: {}".format(e - s))
+    logger.info(f'Query Execution time: {e - s}')
 
 def bq_to_gcs(project: str,
               dataset: str,
@@ -67,6 +67,5 @@ def bq_to_gcs(project: str,
     extract_job.result()  # Waits for job to complete.
     e = time.time()
 
-    logger.info("Exported {}:{}.{} to {}".format(project, dataset, tablename,
-                                                  gcs_path))
-    logger.info("Time elapsed: {} seconds".format(e - s))
+    logger.info(f'Exported {project}.{dataset}.{tablename} to {gcs_path}')
+    logger.info(f'Time elapsed: {e - s} seconds')
