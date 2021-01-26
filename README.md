@@ -1,4 +1,4 @@
-# PyBQ: Python ♥ Google Cloud Big Query
+# GCPy: Google Cloud ♥ Python 
 
 A python package to easily interface with Google Cloud Platform's Big Query using Python.
 
