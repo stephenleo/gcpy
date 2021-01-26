@@ -16,6 +16,7 @@ logging.basicConfig(
     format='%(asctime)s.%(msecs)03d %(levelname)s:\t%(message)s',
     datefmt='%Y-%m-%d %H:%M:%S')
 
+
 ####### GCS related #######
 def query_to_gcs(sql_query_file: str,
                  target_gcs_path: str,
@@ -54,7 +55,8 @@ def query_to_gcs(sql_query_file: str,
     # Create BQ dataset for temporary data storage
     bq_dataset = bigquery.Dataset(f'{project}.{dataset}')
     bq_dataset.location = location
-    bq_dataset = client.create_dataset(bq_dataset, timeout=30, exists_ok=True)  # Make an API request.
+    bq_dataset = client.create_dataset(bq_dataset, timeout=30,
+                                       exists_ok=True)  # Make an API request.
 
     # Query from BQ and store in temporary BQ table.
     logging.info('Executing query')
@@ -66,7 +68,12 @@ def query_to_gcs(sql_query_file: str,
     logging.info('Write to Sharded CSVs in GCS')
     gcs_path = f'{target_gcs_path}/{current_date_time}/{query_data}_*.csv'
     tablename = target_table.split('.')[-1]
-    helpers.bq_to_gcs(project, dataset, tablename, gcs_path, location=location, client=client)
+    helpers.bq_to_gcs(project,
+                      dataset,
+                      tablename,
+                      gcs_path,
+                      location=location,
+                      client=client)
 
     if del_temp_bq_table:
         client.delete_table(target_table, not_found_ok=True)
@@ -74,21 +81,38 @@ def query_to_gcs(sql_query_file: str,
 
     return gcs_path
 
-def gcs_to_bq(source_gcs_path: str, target_bq_dataset: str, target_bq_tablename: str, project: str = CLIENT.project, client=CLIENT):
+
+def gcs_to_bq(source_gcs_path: str,
+              target_bq_dataset: str,
+              target_bq_tablename: str,
+              target_table_schema='auto',
+              num_header_rows: int = 1,
+              project: str = CLIENT.project,
+              client=CLIENT):
     """Import GCS Table into BQ
 
     Arguments:
     - source_gcs_path: source GCS path containing the files to load to BQ
     - target_bq_dataset: BQ dataset containing the "target_bq_tablename" table to import into
     - target_bq_tablename: BQ table to import into
+    - target_table_schema: 'auto' or dictionary of the form {'col_name': 'dtype'}. Default: 'auto'
+    - num_header_rows: Number of header rows to skip while data upload. Default: 1 will skip the first row (column header)
     - project: GCP Project name. Default: CLIENT.project
     - client: The BigQuery Client. Default: CLIENT
     """
     dataset = client.dataset(target_bq_dataset, project=project)
 
     job_config = bigquery.LoadJobConfig(
-        autodetect=True,
-        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE)
+        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+        skip_leading_rows=num_header_rows)
+
+    if target_table_schema == 'auto':
+        job_config.autodetect = True
+    else:
+        job_config.schema = [
+            bigquery.SchemaField(key, value)
+            for key, value in target_table_schema.items()
+        ]
 
     s = time.time()
     load_job = client.load_table_from_uri(source_gcs_path,
@@ -106,7 +130,11 @@ def gcs_to_bq(source_gcs_path: str, target_bq_dataset: str, target_bq_tablename:
 
 
 ####### Pandas related #######
-def pd_to_bq(source_df, target_dataset: str, target_tablename: str, project: str = CLIENT.project, client=CLIENT) -> str:
+def pd_to_bq(source_df,
+             target_dataset: str,
+             target_tablename: str,
+             project: str = CLIENT.project,
+             client=CLIENT) -> str:
     """Pandas Dataframe to BigQuery
     
     Arguments:
@@ -127,6 +155,7 @@ def pd_to_bq(source_df, target_dataset: str, target_tablename: str, project: str
     logging.info(job.result())
     return bq_table
 
+
 def sharded_gcs_csv_to_pd(source_gcs_path: str, file_prefix: str):
     """GCS to Pandas Dataframe
     
@@ -134,7 +163,7 @@ def sharded_gcs_csv_to_pd(source_gcs_path: str, file_prefix: str):
     - source_gcs_path: source GCS path containing the sharded csv files to load to BQ
     - file_prefix: A file name prefix to select only the files of interest
     """
-    
+
     bucketName = source_gcs_path.split('/')[2]
     prefix = os.path.join(*source_gcs_path.split('/')[3:-1], file_prefix)
 
