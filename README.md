@@ -1,6 +1,6 @@
 # GCPy: Google Cloud ♥ Python 
 
-A python package to easily interface with Google Cloud Platform's Big Query using Python.
+A Python package to easily interface with Google Cloud Platform.
 
 ## Instructions for installation
 1. Install gcloud SDK from [Link](https://cloud.google.com/sdk/docs/install)
