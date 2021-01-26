@@ -3,7 +3,7 @@ import setuptools
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
-required_packages = ['google-cloud-bigquery', 'google-cloud-storage', 'pandas', 'tqdm']
+required_packages = ['fsspec', 'gcsfs', 'google-cloud-bigquery', 'google-cloud-storage', 'pandas', 'pyarrow', 'tqdm']
 
 setuptools.setup(
     name="gcpy", 
