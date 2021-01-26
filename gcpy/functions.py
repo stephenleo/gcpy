@@ -21,7 +21,7 @@ def query_to_gcs(sql_query_file: str,
                  target_gcs_path: str,
                  query_params: dict = {},
                  project: str = CLIENT.project,
-                 dataset: str = 'pybq',
+                 dataset: str = 'gcpy',
                  del_temp_bq_table: bool = True,
                  location: str = 'US',
                  client=CLIENT) -> str:
@@ -38,7 +38,7 @@ def query_to_gcs(sql_query_file: str,
     - project: GCP Project name. Default: CLIENT.project
     - dataset: Big Query Dataset to temporarily store the results before moving to GCS. 
         It is the string that appears inbetween the project name and table name in Big Query.
-        Default: 'pybq'
+        Default: 'gcpy'
     - del_temp_bq_table: Switch to delete the temporary BQ table. Default: True.
         If set to False, the query results are saved in BQ table f'{project}.{dataset}.{sql_query_file.split("/")[-1].split(".")[0]}_{current_date_time}'
     - location: location of the GCS bucket. Default: 'US'
@@ -49,7 +49,7 @@ def query_to_gcs(sql_query_file: str,
     """
 
     # Current datetime
-    current_date_time = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    current_date_time = datetime.now().strftime("%Y%m%d%H%M%S")
 
     # Create BQ dataset for temporary data storage
     bq_dataset = bigquery.Dataset(f'{project}.{dataset}')
