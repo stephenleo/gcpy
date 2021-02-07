@@ -99,6 +99,9 @@ def gcs_to_bq(source_gcs_path: str,
     - num_header_rows: Number of header rows to skip while data upload. Default: 1 will skip the first row (column header)
     - project: GCP Project name. Default: CLIENT.project
     - client: The BigQuery Client. Default: CLIENT
+
+    Returns:
+    The string BQ table name where csv files from source_gcs_path has been uploaded to
     """
     dataset = client.dataset(target_bq_dataset, project=project)
 
@@ -127,6 +130,8 @@ def gcs_to_bq(source_gcs_path: str,
 
     target_table = client.get_table(dataset.table(target_bq_tablename))
     logging.info(f'Loaded {target_table.num_rows} rows')
+
+    return f'{project}.{target_bq_dataset}.{target_bq_tablename}'
 
 
 ####### Pandas related #######
@@ -162,6 +167,9 @@ def sharded_gcs_csv_to_pd(source_gcs_path: str, file_prefix: str):
     Arguments:
     - source_gcs_path: source GCS path containing the sharded csv files to load to BQ
     - file_prefix: A file name prefix to select only the files of interest
+
+    Returns:
+    A single pandas dataframe that concatenates all the sharded csvs
     """
 
     bucketName = source_gcs_path.split('/')[2]
