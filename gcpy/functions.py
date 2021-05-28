@@ -107,7 +107,9 @@ def gcs_to_bq(source_gcs_path: str,
 
     job_config = bigquery.LoadJobConfig(
         write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
-        skip_leading_rows=num_header_rows)
+        skip_leading_rows=num_header_rows, 
+        allow_quoted_newlines=True
+    )
 
     if target_table_schema == 'auto':
         job_config.autodetect = True
