@@ -10,3 +10,7 @@ A Python package to easily interface with Google Cloud Platform.
 
 ## Usage
 Detailed usage instructions in [docs](docs/docs.ipynb)
+
+
+## TODO
+1. Create dataset if dataset doesn't exist in `pd_to_bq`
