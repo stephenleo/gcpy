@@ -158,7 +158,7 @@ def pd_to_bq(
     Returns:
     The string BQ table name where source_df has been uploaded to
     """
-    bq_table = project + "." + target_dataset + "." + target_tablename
+    bq_table = f"{project}.{target_dataset}.{target_tablename}"
 
     job = client.load_table_from_dataframe(source_df, bq_table)
 
@@ -196,6 +196,4 @@ def sharded_gcs_csv_to_pd(source_gcs_path: str, file_prefix: str):
         df = pd.read_csv(file)
         df_list.append(df)
 
-    unsharded_df = pd.concat(df_list, ignore_index=True)
-
-    return unsharded_df
+    return pd.concat(df_list, ignore_index=True)
